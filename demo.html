@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>bit-sync-esm Demo</title>
+  <importmap>
+    <script type="importmap">
+      {
+        "imports": {
+          "@noble/hashes/legacy.js": "https://esm.sh/@noble/hashes@2.0.1/legacy.js"
+        }
+      }
+    </script>
+  </importmap>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 900px;
+      margin: 40px auto;
+      padding: 0 20px;
+      line-height: 1.6;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    .section {
+      margin: 30px 0;
+      padding: 20px;
+      background: #f5f5f5;
+      border-radius: 8px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 10px;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      font-family: monospace;
+      font-size: 14px;
+    }
+
+    button {
+      background: #0066cc;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px 10px 0;
+    }
+
+    button:hover {
+      background: #0052a3;
+    }
+
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+
+    .result {
+      margin-top: 15px;
+      padding: 15px;
+      background: white;
+      border-left: 4px solid #0066cc;
+      border-radius: 4px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-top: 15px;
+    }
+
+    .stat {
+      background: white;
+      padding: 15px;
+      border-radius: 4px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #0066cc;
+    }
+
+    .stat-label {
+      font-size: 14px;
+      color: #666;
+      margin-top: 5px;
+    }
+
+    code {
+      background: #e0e0e0;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 14px;
+    }
+
+    .success {
+      color: #28a745;
+    }
+
+    .info {
+      color: #666;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>🔄 bit-sync-esm Demo</h1>
+  <p>Interactive demonstration of rsync-like binary delta synchronization in the browser.</p>
+
+  <div class="section">
+    <h2>Step 1: Original File (Destination)</h2>
+    <textarea id="destination" placeholder="Enter original text...">The quick brown fox jumps over the lazy dog.
+This is a test document for binary synchronization.
+It contains multiple sentences and paragraphs.</textarea>
+    <button id="createChecksums">Create Checksums</button>
+    <div id="checksumResult"></div>
+  </div>
+
+  <div class="section">
+    <h2>Step 2: Modified File (Source)</h2>
+    <textarea id="source" placeholder="Enter modified text...">The quick brown fox jumps over the lazy dog.
+This is a MODIFIED test document for binary synchronization.
+It contains multiple sentences and paragraphs.
+A new paragraph has been added here.</textarea>
+    <button id="createPatch" disabled>Create Patch</button>
+    <div id="patchResult"></div>
+  </div>
+
+  <div class="section">
+    <h2>Step 3: Apply Patch</h2>
+    <button id="applyPatch" disabled>Apply Patch & Sync</button>
+    <div id="syncResult"></div>
+  </div>
+
+  <div class="section">
+    <h2>📊 Statistics</h2>
+    <div class="stats" id="stats"></div>
+  </div>
+
+  <script type="module">
+    import {
+      createChecksumDocument,
+      createPatchDocument,
+      applyPatch
+    } from './index.js';
+
+    const BLOCK_SIZE = 64;
+    let checksumDoc = null;
+    let patchDoc = null;
+    let destinationData = null;
+
+    const $ = (id) => document.getElementById(id);
+    const strToBuffer = (str) => new TextEncoder().encode(str).buffer;
+    const bufferToStr = (buf) => new TextDecoder().decode(buf);
+
+    function updateStats(stats) {
+      $('stats').innerHTML = Object.entries(stats)
+        .map(([label, value]) => `
+          <div class="stat">
+            <div class="stat-value">${value}</div>
+            <div class="stat-label">${label}</div>
+          </div>
+        `).join('');
+    }
+
+    $('createChecksums').addEventListener('click', () => {
+      try {
+        const text = $('destination').value;
+        destinationData = strToBuffer(text);
+
+        const start = performance.now();
+        checksumDoc = createChecksumDocument(BLOCK_SIZE, destinationData);
+        const time = (performance.now() - start).toFixed(2);
+
+        const numBlocks = new Uint32Array(checksumDoc, 0, 2)[1];
+
+        $('checksumResult').innerHTML = `
+          <div class="result success">
+            ✓ Created checksums in ${time}ms
+            <div class="info" style="margin-top: 10px;">
+              Block size: <code>${BLOCK_SIZE} bytes</code><br>
+              Number of blocks: <code>${numBlocks}</code><br>
+              Checksum document size: <code>${checksumDoc.byteLength} bytes</code>
+            </div>
+          </div>
+        `;
+
+        $('createPatch').disabled = false;
+
+        updateStats({
+          'Destination Size': `${destinationData.byteLength}B`,
+          'Checksum Doc': `${checksumDoc.byteLength}B`,
+          'Blocks': numBlocks,
+          'Block Size': `${BLOCK_SIZE}B`
+        });
+      } catch (err) {
+        $('checksumResult').innerHTML = `
+          <div class="result" style="border-color: #dc3545; color: #dc3545;">
+            ✗ Error: ${err.message}
+          </div>
+        `;
+      }
+    });
+
+    $('createPatch').addEventListener('click', () => {
+      try {
+        const text = $('source').value;
+        const sourceData = strToBuffer(text);
+
+        const start = performance.now();
+        patchDoc = createPatchDocument(checksumDoc, sourceData);
+        const time = (performance.now() - start).toFixed(2);
+
+        const view32 = new Uint32Array(patchDoc, 0, 3);
+        const patchCount = view32[1];
+        const matchCount = view32[2];
+
+        const efficiency = ((patchDoc.byteLength / sourceData.byteLength) * 100).toFixed(1);
+
+        $('patchResult').innerHTML = `
+          <div class="result success">
+            ✓ Created patch in ${time}ms
+            <div class="info" style="margin-top: 10px;">
+              Source size: <code>${sourceData.byteLength} bytes</code><br>
+              Patch size: <code>${patchDoc.byteLength} bytes</code> (${efficiency}% of source)<br>
+              Matched blocks: <code>${matchCount}</code><br>
+              Patches: <code>${patchCount}</code>
+            </div>
+          </div>
+        `;
+
+        $('applyPatch').disabled = false;
+
+        updateStats({
+          'Source Size': `${sourceData.byteLength}B`,
+          'Patch Size': `${patchDoc.byteLength}B`,
+          'Efficiency': `${efficiency}%`,
+          'Matched Blocks': matchCount
+        });
+      } catch (err) {
+        $('patchResult').innerHTML = `
+          <div class="result" style="border-color: #dc3545; color: #dc3545;">
+            ✗ Error: ${err.message}
+          </div>
+        `;
+      }
+    });
+
+    $('applyPatch').addEventListener('click', () => {
+      try {
+        const start = performance.now();
+        const syncedData = applyPatch(patchDoc, destinationData);
+        const time = (performance.now() - start).toFixed(2);
+
+        const syncedText = bufferToStr(syncedData);
+        const sourceText = $('source').value;
+        const isMatch = syncedText === sourceText;
+
+        $('syncResult').innerHTML = `
+          <div class="result ${isMatch ? 'success' : ''}" style="${!isMatch ? 'border-color: #dc3545; color: #dc3545;' : ''}">
+            ${isMatch ? '✓' : '✗'} Applied patch in ${time}ms
+            <div class="info" style="margin-top: 10px;">
+              Result matches source: <code>${isMatch ? 'YES' : 'NO'}</code><br>
+              Synced size: <code>${syncedData.byteLength} bytes</code>
+            </div>
+            <details style="margin-top: 15px;">
+              <summary style="cursor: pointer; font-weight: bold;">Show synced content</summary>
+              <pre style="background: #f9f9f9; padding: 15px; border-radius: 4px; overflow-x: auto; margin-top: 10px;">${syncedText}</pre>
+            </details>
+          </div>
+        `;
+
+        const originalSize = destinationData.byteLength;
+        const patchSize = patchDoc.byteLength;
+        const checksumSize = checksumDoc.byteLength;
+        const totalTransferred = checksumSize + patchSize;
+        const savings = ((1 - (totalTransferred / syncedData.byteLength)) * 100).toFixed(1);
+
+        updateStats({
+          'Synced Size': `${syncedData.byteLength}B`,
+          'Total Transferred': `${totalTransferred}B`,
+          'Bandwidth Saved': `${savings}%`,
+          'Apply Time': `${time}ms`
+        });
+      } catch (err) {
+        $('syncResult').innerHTML = `
+          <div class="result" style="border-color: #dc3545; color: #dc3545;">
+            ✗ Error: ${err.message}
+          </div>
+        `;
+      }
+    });
+
+    // Auto-run demo
+    setTimeout(() => {
+      $('createChecksums').click();
+      setTimeout(() => {
+        $('createPatch').click();
+      }, 100);
+    }, 500);
+  </script>
+</body>
+
+</html>

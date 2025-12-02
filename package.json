@@ -1,0 +1,49 @@
+{
+  "name": "bit-sync-esm",
+  "version": "1.0.0",
+  "description": "Modern ESM implementation of rsync-like binary delta synchronization for browsers",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "files": [
+    "index.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test.js"
+  },
+  "keywords": [
+    "rsync",
+    "delta",
+    "sync",
+    "binary",
+    "diff",
+    "patch",
+    "webtorrent",
+    "browser",
+    "esm",
+    "webworker",
+    "adler32",
+    "rolling-checksum"
+  ],
+  "author": "Based on original by Clayton C. Gulick",
+  "license": "MIT",
+  "dependencies": {
+    "@noble/hashes": "^1.5.0"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/bit-sync-esm.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/bit-sync-esm/issues"
+  },
+  "homepage": "https://github.com/yourusername/bit-sync-esm#readme"
+}
