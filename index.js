@@ -6,7 +6,7 @@
  * @version 1.0.0
  */
 
-import { md5 } from '@noble/hashes/legacy.js';
+import { blake2s } from '@noble/hashes/blake2.js';
 
 // Constants
 const HASH_TABLE_SIZE = 65536; // 2^16
@@ -169,7 +169,7 @@ export const createChecksumDocument = (blockSize = DEFAULT_BLOCK_SIZE, data, opt
 
     // MD5
     const chunk = new Uint8Array(data, start, chunkLength);
-    const hash = md5(chunk);
+    const hash = blake2s(chunk, { dkLen: 16 });
     const hashView = new Uint32Array(hash.buffer, hash.byteOffset, 4);
 
     view32[offset++] = hashView[0];
@@ -234,7 +234,7 @@ const checkMatch = (adlerInfo, hashTable, block) => {
   for (const [blockIndex, adler32sum, md5sum] of row) {
     if (adler32sum !== adlerInfo.checksum) continue;
 
-    const blockHash = md5(block);
+    const blockHash = blake2s(block, { dkLen: 16 });
     const blockHashView = new Uint32Array(
       blockHash.buffer,
       blockHash.byteOffset,
