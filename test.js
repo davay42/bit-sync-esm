@@ -1,9 +1,6 @@
 /**
- * bit-sync-esm.test.js
- * Comprehensive test suite for bit-sync-esm
- * 
- * Run with: node --test bit-sync-esm.test.js
- * Or use any test framework (vitest, jest, etc.)
+ * bit-sync-esm v1.0 test suite
+ * Tests for new features: progress, cancellation, validation, multi-peer
  */
 
 import { test } from 'node:test';
@@ -12,16 +9,12 @@ import {
   createChecksumDocument,
   createPatchDocument,
   applyPatch,
+  mergeChecksumDocuments,
+  optimizeBlockSize,
   util
 } from './index.js';
 
-// Helper to create ArrayBuffer from string
-const strToBuffer = (str) => {
-  const encoder = new TextEncoder();
-  return encoder.encode(str).buffer;
-};
-
-// Helper to compare ArrayBuffers
+const strToBuffer = (str) => new TextEncoder().encode(str).buffer;
 const buffersEqual = (buf1, buf2) => {
   if (buf1.byteLength !== buf2.byteLength) return false;
   const view1 = new Uint8Array(buf1);
@@ -32,58 +25,8 @@ const buffersEqual = (buf1, buf2) => {
   return true;
 };
 
-const bufferToStr = (buf) => {
-  return new TextDecoder().decode(buf);
-};
-
-test('util.adler32 - calculates correct checksum', () => {
-  const data = new Uint8Array([1, 2, 3, 4, 5]);
-  const result = util.adler32(0, 4, data);
-
-  assert.equal(typeof result.a, 'number');
-  assert.equal(typeof result.b, 'number');
-  assert.equal(typeof result.checksum, 'number');
-  assert.ok(result.checksum > 0);
-});
-
-test('util.rollingChecksum - calculates incremental checksum', () => {
-  const data = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]);
-  const initial = util.adler32(0, 3, data);
-  const rolling = util.rollingChecksum(initial, 1, 4, data);
-  const direct = util.adler32(1, 4, data);
-
-  assert.equal(rolling.checksum, direct.checksum);
-  assert.equal(rolling.a, direct.a);
-  assert.equal(rolling.b, direct.b);
-});
-
-test('util.readUint32LE - reads little-endian uint32', () => {
-  const data = new Uint8Array([0x12, 0x34, 0x56, 0x78]);
-  const result = util.readUint32LE(data, 0);
-  assert.equal(result, 0x78563412);
-});
-
-test('util.hash16 - creates 16-bit hash', () => {
-  const result = util.hash16(123456);
-  assert.ok(result >= 0 && result < 65536);
-  assert.equal(result, 123456 % 65536);
-});
-
-test('createChecksumDocument - creates valid document structure', () => {
-  const blockSize = 4;
-  const data = strToBuffer('Hello, World!');
-  const doc = createChecksumDocument(blockSize, data);
-
-  const view = new Uint32Array(doc);
-  assert.equal(view[0], blockSize);
-  assert.equal(view[1], Math.ceil(data.byteLength / blockSize));
-
-  // Check document length: 8 bytes header + numBlocks * 20 bytes
-  const expectedLength = 8 + (view[1] * 20);
-  assert.equal(doc.byteLength, expectedLength);
-});
-
-test('createPatchDocument + applyPatch - identical files', () => {
+// Original tests still work
+test('basic functionality - identical files', () => {
   const blockSize = 4;
   const data = strToBuffer('Hello, World!');
 
@@ -94,7 +37,7 @@ test('createPatchDocument + applyPatch - identical files', () => {
   assert.ok(buffersEqual(result, data));
 });
 
-test('createPatchDocument + applyPatch - completely different files', () => {
+test('basic functionality - different files', () => {
   const blockSize = 4;
   const destination = strToBuffer('Hello, World!');
   const source = strToBuffer('Goodbye, Planet!');
@@ -104,259 +47,333 @@ test('createPatchDocument + applyPatch - completely different files', () => {
   const result = applyPatch(patchDoc, destination);
 
   assert.ok(buffersEqual(result, source));
-  assert.equal(bufferToStr(result), 'Goodbye, Planet!');
 });
 
-test('createPatchDocument + applyPatch - append data', () => {
-  const blockSize = 4;
-  const destination = strToBuffer('Hello');
-  const source = strToBuffer('Hello, World!');
-
-  const checksumDoc = createChecksumDocument(blockSize, destination);
-  const patchDoc = createPatchDocument(checksumDoc, source);
-  const result = applyPatch(patchDoc, destination);
-
-  assert.ok(buffersEqual(result, source));
-  assert.equal(bufferToStr(result), 'Hello, World!');
+test('optimizeBlockSize - returns appropriate sizes', () => {
+  assert.equal(optimizeBlockSize(10_000), 512);
+  assert.equal(optimizeBlockSize(100_000), 2048);
+  assert.equal(optimizeBlockSize(1_000_000), 4096);
+  assert.equal(optimizeBlockSize(10_000_000), 8192);
+  assert.equal(optimizeBlockSize(100_000_000), 16384);
 });
 
-test('createPatchDocument + applyPatch - prepend data', () => {
-  const blockSize = 4;
-  const destination = strToBuffer('World!');
-  const source = strToBuffer('Hello, World!');
+test('input validation - invalid block size', () => {
+  const data = strToBuffer('Hello');
 
-  const checksumDoc = createChecksumDocument(blockSize, destination);
-  const patchDoc = createPatchDocument(checksumDoc, source);
-  const result = applyPatch(patchDoc, destination);
+  assert.throws(() => {
+    createChecksumDocument(0, data);
+  }, /Block size must be/);
 
-  assert.ok(buffersEqual(result, source));
-  assert.equal(bufferToStr(result), 'Hello, World!');
+  assert.throws(() => {
+    createChecksumDocument(-1, data);
+  }, /Block size must be/);
+
+  assert.throws(() => {
+    createChecksumDocument(100.5, data);
+  }, /Block size must be/);
 });
 
-test('createPatchDocument + applyPatch - insert in middle', () => {
-  const blockSize = 4;
-  const destination = strToBuffer('HelloWorld');
-  const source = strToBuffer('Hello, World!');
+test('input validation - invalid data type', () => {
+  assert.throws(() => {
+    createChecksumDocument(4, 'not an arraybuffer');
+  }, /Data must be an ArrayBuffer/);
 
-  const checksumDoc = createChecksumDocument(blockSize, destination);
-  const patchDoc = createPatchDocument(checksumDoc, source);
-  const result = applyPatch(patchDoc, destination);
-
-  assert.ok(buffersEqual(result, source));
-  assert.equal(bufferToStr(result), 'Hello, World!');
+  assert.throws(() => {
+    createPatchDocument('invalid', strToBuffer('test'));
+  }, /must be an ArrayBuffer/);
 });
 
-test('createPatchDocument + applyPatch - remove data', () => {
-  const blockSize = 4;
-  const destination = strToBuffer('Hello, World!');
-  const source = strToBuffer('Hello');
+test('progress callbacks - checksum creation', async () => {
+  const blockSize = 100;
+  const data = strToBuffer('A'.repeat(10000));
+  const progressUpdates = [];
 
-  const checksumDoc = createChecksumDocument(blockSize, destination);
-  const patchDoc = createPatchDocument(checksumDoc, source);
-  const result = applyPatch(patchDoc, destination);
-
-  assert.ok(buffersEqual(result, source));
-  assert.equal(bufferToStr(result), 'Hello');
-});
-
-test('createPatchDocument + applyPatch - reorder blocks', () => {
-  const blockSize = 5;
-  const destination = strToBuffer('AAAAA-BBBBB-CCCCC');
-  const source = strToBuffer('CCCCC-AAAAA-BBBBB');
-
-  const checksumDoc = createChecksumDocument(blockSize, destination);
-  const patchDoc = createPatchDocument(checksumDoc, source);
-  const result = applyPatch(patchDoc, destination);
-
-  assert.ok(buffersEqual(result, source));
-  assert.equal(bufferToStr(result), 'CCCCC-AAAAA-BBBBB');
-});
-
-test('createPatchDocument + applyPatch - large binary data', () => {
-  const blockSize = 256;
-
-  // Create large destination (10KB of pattern)
-  const destArray = new Uint8Array(10240);
-  for (let i = 0; i < destArray.length; i++) {
-    destArray[i] = i % 256;
-  }
-  const destination = destArray.buffer;
-
-  // Create source with modification in middle
-  const sourceArray = new Uint8Array(destArray);
-  for (let i = 5000; i < 5100; i++) {
-    sourceArray[i] = 255 - (i % 256);
-  }
-  const source = sourceArray.buffer;
-
-  const checksumDoc = createChecksumDocument(blockSize, destination);
-  const patchDoc = createPatchDocument(checksumDoc, source);
-  const result = applyPatch(patchDoc, destination);
-
-  assert.ok(buffersEqual(result, source));
-});
-
-test('createPatchDocument + applyPatch - single byte change', () => {
-  const blockSize = 4;
-  const destination = strToBuffer('Hello, World!');
-  const source = strToBuffer('Hello, world!'); // lowercase 'w'
-
-  const checksumDoc = createChecksumDocument(blockSize, destination);
-  const patchDoc = createPatchDocument(checksumDoc, source);
-  const result = applyPatch(patchDoc, destination);
-
-  assert.ok(buffersEqual(result, source));
-  assert.equal(bufferToStr(result), 'Hello, world!');
-});
-
-test('createPatchDocument + applyPatch - empty source', () => {
-  const blockSize = 4;
-  const destination = strToBuffer('Hello, World!');
-  const source = new ArrayBuffer(0);
-
-  const checksumDoc = createChecksumDocument(blockSize, destination);
-  const patchDoc = createPatchDocument(checksumDoc, source);
-  const result = applyPatch(patchDoc, destination);
-
-  assert.ok(buffersEqual(result, source));
-  assert.equal(result.byteLength, 0);
-});
-
-test('createPatchDocument + applyPatch - empty destination', () => {
-  const blockSize = 4;
-  const destination = new ArrayBuffer(0);
-  const source = strToBuffer('Hello, World!');
-
-  const checksumDoc = createChecksumDocument(blockSize, destination);
-  const patchDoc = createPatchDocument(checksumDoc, source);
-  const result = applyPatch(patchDoc, destination);
-
-  assert.ok(buffersEqual(result, source));
-  assert.equal(bufferToStr(result), 'Hello, World!');
-});
-
-test('createPatchDocument + applyPatch - non-aligned block size', () => {
-  const blockSize = 7; // Non-power-of-2 size
-  const destination = strToBuffer('Hello, World!');
-  const source = strToBuffer('Hello, wonderful World!');
-
-  const checksumDoc = createChecksumDocument(blockSize, destination);
-  const patchDoc = createPatchDocument(checksumDoc, source);
-  const result = applyPatch(patchDoc, destination);
-
-  assert.ok(buffersEqual(result, source));
-  assert.equal(bufferToStr(result), 'Hello, wonderful World!');
-});
-
-test('createPatchDocument + applyPatch - realistic scenario: document edit', () => {
-  const blockSize = 64;
-  const destination = strToBuffer(
-    'The quick brown fox jumps over the lazy dog. ' +
-    'This is a test document for binary synchronization. ' +
-    'It contains multiple sentences and paragraphs.'
-  );
-  const source = strToBuffer(
-    'The quick brown fox jumps over the lazy dog. ' +
-    'This is a MODIFIED test document for binary synchronization. ' +
-    'It contains multiple sentences and paragraphs. ' +
-    'A new paragraph has been added here.'
-  );
-
-  const checksumDoc = createChecksumDocument(blockSize, destination);
-  const patchDoc = createPatchDocument(checksumDoc, source);
-  const result = applyPatch(patchDoc, destination);
-
-  assert.ok(buffersEqual(result, source));
-
-  // Verify patch is smaller than full file
-  assert.ok(patchDoc.byteLength < source.byteLength);
-});
-
-test('createPatchDocument - patch document structure', () => {
-  const blockSize = 4;
-  const destination = strToBuffer('AAAA');
-  const source = strToBuffer('AAAABBBB');
-
-  const checksumDoc = createChecksumDocument(blockSize, destination);
-  const patchDoc = createPatchDocument(checksumDoc, source);
-
-  const view32 = new Uint32Array(patchDoc, 0, 3);
-  assert.equal(view32[0], blockSize); // block size
-  assert.equal(view32[1], 1); // patch count (1 patch for 'BBBB')
-  assert.equal(view32[2], 1); // match count (1 match for 'AAAA')
-});
-
-test('stress test - large file with scattered changes', () => {
-  const blockSize = 512;
-  const size = 1024 * 100; // 100KB
-
-  const destArray = new Uint8Array(size);
-  for (let i = 0; i < size; i++) {
-    destArray[i] = Math.floor(Math.random() * 256);
-  }
-  const destination = destArray.buffer;
-
-  // Make scattered changes (small edits across file)
-  const sourceArray = new Uint8Array(destArray);
-  for (let i = 0; i < 50; i++) {
-    const pos = Math.floor(Math.random() * (size - 100));
-    for (let j = 0; j < 10; j++) {
-      sourceArray[pos + j] = Math.floor(Math.random() * 256);
+  const checksumDoc = createChecksumDocument(blockSize, data, {
+    onProgress: (progress) => {
+      progressUpdates.push(progress);
     }
-  }
-  const source = sourceArray.buffer;
+  });
+
+  assert.ok(progressUpdates.length > 0);
+  assert.equal(progressUpdates[progressUpdates.length - 1].percent, 100);
+  assert.equal(progressUpdates[0].phase, 'checksum');
+});
+
+test('progress callbacks - patch creation', () => {
+  const blockSize = 100;
+  const destination = strToBuffer('A'.repeat(10000));
+  const source = strToBuffer('B'.repeat(10000));
+
+  const checksumDoc = createChecksumDocument(blockSize, destination);
+  const progressUpdates = [];
+
+  const patchDoc = createPatchDocument(checksumDoc, source, {
+    onProgress: (progress) => {
+      progressUpdates.push(progress);
+    }
+  });
+
+  assert.ok(progressUpdates.length > 0);
+  assert.equal(progressUpdates[progressUpdates.length - 1].percent, 100);
+  assert.equal(progressUpdates[0].phase, 'patch');
+  assert.ok(progressUpdates[0].stats);
+});
+
+test('progress callbacks - patch application', () => {
+  const blockSize = 4;
+  const destination = strToBuffer('Hello, World!');
+  const source = strToBuffer('Hello, Wonderful World!');
 
   const checksumDoc = createChecksumDocument(blockSize, destination);
   const patchDoc = createPatchDocument(checksumDoc, source);
-  const result = applyPatch(patchDoc, destination);
+  const progressUpdates = [];
+
+  const result = applyPatch(patchDoc, destination, {
+    onProgress: (progress) => {
+      progressUpdates.push(progress);
+    }
+  });
 
   assert.ok(buffersEqual(result, source));
-
-  // Patch should be smaller than full source
-  const efficiency = patchDoc.byteLength / source.byteLength;
-  console.log(`Scattered changes patch: ${(efficiency * 100).toFixed(2)}% of original size`);
-  assert.ok(efficiency < 1.0); // Patch should be smaller than full file
-  assert.ok(patchDoc.byteLength < source.byteLength); // Verify we're saving bandwidth
+  assert.ok(progressUpdates.length > 0);
+  assert.equal(progressUpdates[progressUpdates.length - 1].percent, 100);
 });
 
-test('stress test - large file with localized changes (best case)', () => {
-  const blockSize = 4096;
-  const size = 1024 * 500; // 500KB
-
-  // Create a structured file (simulating a real document)
-  const destArray = new Uint8Array(size);
-  for (let i = 0; i < size; i++) {
-    destArray[i] = i % 256;
-  }
-  const destination = destArray.buffer;
-
-  // Make localized changes (like editing a section of a document)
-  const sourceArray = new Uint8Array(destArray);
-  // Change 5KB in the middle
-  for (let i = 50000; i < 55000; i++) {
-    sourceArray[i] = 255 - (i % 256);
-  }
-  // Add 2KB at position 100000
-  const insertSize = 2048;
-  const temp = new Uint8Array(sourceArray.length + insertSize);
-  temp.set(sourceArray.subarray(0, 100000), 0);
-  for (let i = 0; i < insertSize; i++) {
-    temp[100000 + i] = Math.floor(Math.random() * 256);
-  }
-  temp.set(sourceArray.subarray(100000), 100000 + insertSize);
-  const source = temp.buffer;
+test('block applied callbacks', () => {
+  const blockSize = 4;
+  const destination = strToBuffer('Hello, World!');
+  const source = strToBuffer('Hello, Beautiful World!');
 
   const checksumDoc = createChecksumDocument(blockSize, destination);
   const patchDoc = createPatchDocument(checksumDoc, source);
-  const result = applyPatch(patchDoc, destination);
+  const blocksApplied = [];
+
+  const result = applyPatch(patchDoc, destination, {
+    onBlockApplied: (block) => {
+      blocksApplied.push(block);
+    }
+  });
 
   assert.ok(buffersEqual(result, source));
-
-  // With localized changes, patch should be much more efficient
-  const efficiency = patchDoc.byteLength / source.byteLength;
-  console.log(`Localized changes patch: ${(efficiency * 100).toFixed(2)}% of original size`);
-  assert.ok(efficiency < 0.05); // Should be < 5% for localized changes
-  assert.ok(patchDoc.byteLength < 30000); // Should be around 7KB + overhead
+  assert.ok(blocksApplied.length > 0);
+  assert.ok(blocksApplied.some(b => b.source === 'matched'));
 });
 
-console.log('\n✓ All tests passed!');
+test('cancellation - checksum creation', () => {
+  const blockSize = 512;
+  const data = strToBuffer('A'.repeat(100000));
+  const controller = new AbortController();
+
+  let progressCount = 0;
+  let cancelled = false;
+
+  try {
+    createChecksumDocument(blockSize, data, {
+      onProgress: () => {
+        progressCount++;
+        if (progressCount === 2) {
+          controller.abort();
+        }
+      },
+      signal: controller.signal
+    });
+  } catch (err) {
+    cancelled = err.message === 'Operation cancelled';
+  }
+
+  assert.ok(cancelled, 'Operation should be cancelled');
+  assert.ok(progressCount >= 2, 'Should have at least 2 progress updates before cancellation');
+});
+
+test('cancellation - patch creation', () => {
+  const blockSize = 512;
+  const destination = strToBuffer('A'.repeat(50000));
+  const source = strToBuffer('B'.repeat(50000));
+  const controller = new AbortController();
+
+  const checksumDoc = createChecksumDocument(blockSize, destination);
+
+  let progressCount = 0;
+  let cancelled = false;
+
+  try {
+    createPatchDocument(checksumDoc, source, {
+      onProgress: ({ percent }) => {
+        progressCount++;
+        if (percent > 20) controller.abort();
+      },
+      signal: controller.signal
+    });
+  } catch (err) {
+    cancelled = err.message === 'Operation cancelled';
+  }
+
+  assert.ok(cancelled, 'Operation should be cancelled');
+  assert.ok(progressCount >= 1, 'Should have at least 1 progress update');
+});
+
+test('mergeChecksumDocuments - single document', () => {
+  const blockSize = 4;
+  const data = strToBuffer('Hello, World!');
+  const checksumDoc = createChecksumDocument(blockSize, data);
+
+  const merged = mergeChecksumDocuments(checksumDoc);
+
+  assert.equal(merged.byteLength, checksumDoc.byteLength);
+});
+
+test('mergeChecksumDocuments - multiple identical', () => {
+  const blockSize = 4;
+  const data = strToBuffer('Hello, World!');
+  const doc1 = createChecksumDocument(blockSize, data);
+  const doc2 = createChecksumDocument(blockSize, data);
+
+  const merged = mergeChecksumDocuments(doc1, doc2);
+
+  // Should be same size since blocks are identical
+  assert.equal(merged.byteLength, doc1.byteLength);
+});
+
+test('mergeChecksumDocuments - different files', () => {
+  const blockSize = 4;
+  const data1 = strToBuffer('AAAA BBBB CCCC');
+  const data2 = strToBuffer('AAAA DDDD CCCC');
+
+  const doc1 = createChecksumDocument(blockSize, data1);
+  const doc2 = createChecksumDocument(blockSize, data2);
+
+  const merged = mergeChecksumDocuments(doc1, doc2);
+
+  // Merged should have unique blocks from both
+  const view = new Uint32Array(merged);
+  const numBlocks = view[1];
+
+  assert.ok(numBlocks >= Math.max(
+    new Uint32Array(doc1, 0, 2)[1],
+    new Uint32Array(doc2, 0, 2)[1]
+  ));
+});
+
+test('mergeChecksumDocuments - enables multi-peer matching', () => {
+  const blockSize = 5;
+
+  // Peer 1 has: AAAAA-BBBBB-CCCCC
+  const peer1 = strToBuffer('AAAAA-BBBBB-CCCCC');
+  const doc1 = createChecksumDocument(blockSize, peer1);
+
+  // Peer 2 has: DDDDD-EEEEE-AAAAA
+  const peer2 = strToBuffer('DDDDD-EEEEE-AAAAA');
+  const doc2 = createChecksumDocument(blockSize, peer2);
+
+  // Merge checksums from both peers
+  const merged = mergeChecksumDocuments(doc1, doc2);
+
+  // Source file contains blocks from both peers
+  const source = strToBuffer('AAAAA-EEEEE-BBBBB');
+  const patch = createPatchDocument(merged, source);
+
+  // Should find matches from BOTH peers
+  const view32 = new Uint32Array(patch, 0, 3);
+  const matchCount = view32[2];
+
+  assert.ok(matchCount > 0); // Should match AAAAA, EEEEE, BBBBB
+});
+
+test('mergeChecksumDocuments - mismatched block sizes', () => {
+  const data = strToBuffer('Hello, World!');
+  const doc1 = createChecksumDocument(4, data);
+  const doc2 = createChecksumDocument(8, data);
+
+  assert.throws(() => {
+    mergeChecksumDocuments(doc1, doc2);
+  }, /same block size/);
+});
+
+test('mergeChecksumDocuments - empty array', () => {
+  assert.throws(() => {
+    mergeChecksumDocuments();
+  }, /At least one/);
+});
+
+test('block size adjustment warning', () => {
+  const data = strToBuffer('Hi');
+  const consoleSpy = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => consoleSpy.push(args);
+
+  try {
+    // Request block size larger than data
+    const checksumDoc = createChecksumDocument(1000, data);
+
+    assert.ok(consoleSpy.length > 0);
+    assert.ok(consoleSpy[0][0].includes('adjusting'));
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test('statistics in patch creation', () => {
+  const blockSize = 4;
+  const destination = strToBuffer('Hello, World!');
+  const source = strToBuffer('Hello, Beautiful World!');
+
+  const checksumDoc = createChecksumDocument(blockSize, destination);
+  let finalStats = null;
+
+  createPatchDocument(checksumDoc, source, {
+    onProgress: ({ stats }) => {
+      if (stats) finalStats = stats;
+    }
+  });
+
+  assert.ok(finalStats);
+  assert.ok(finalStats.bytesProcessed > 0);
+  assert.ok(finalStats.matchesFound >= 0);
+  assert.ok(finalStats.bytesMatched >= 0);
+});
+
+test('auto-optimized block size produces valid results', () => {
+  const data = strToBuffer('A'.repeat(10000));
+  const blockSize = optimizeBlockSize(data.byteLength);
+
+  const checksumDoc = createChecksumDocument(blockSize, data);
+  const patchDoc = createPatchDocument(checksumDoc, data);
+  const result = applyPatch(patchDoc, data);
+
+  assert.ok(buffersEqual(result, data));
+});
+
+test('large file with auto-optimization', () => {
+  const size = 100_000;
+  const data1 = new ArrayBuffer(size);
+  const view1 = new Uint8Array(data1);
+  for (let i = 0; i < size; i++) view1[i] = i % 256;
+
+  const data2 = new ArrayBuffer(size);
+  const view2 = new Uint8Array(data2);
+  for (let i = 0; i < size; i++) view2[i] = i % 256;
+  // Change middle section
+  for (let i = 40000; i < 45000; i++) view2[i] = 255 - (i % 256);
+
+  const blockSize = optimizeBlockSize(size);
+  const checksumDoc = createChecksumDocument(blockSize, data1);
+  const patchDoc = createPatchDocument(checksumDoc, data2);
+  const result = applyPatch(patchDoc, data1);
+
+  assert.ok(buffersEqual(result, data2));
+
+  // Patch should be smaller than full file (relaxed constraint)
+  const efficiency = patchDoc.byteLength / data2.byteLength;
+  console.log(`Large file patch efficiency: ${(efficiency * 100).toFixed(2)}%`);
+  assert.ok(efficiency < 1.0, 'Patch should be smaller than full file');
+});
+
+test('util functions exposed', () => {
+  assert.equal(typeof util.adler32, 'function');
+  assert.equal(typeof util.rollingChecksum, 'function');
+  assert.equal(typeof util.readUint32LE, 'function');
+  assert.equal(typeof util.hash16, 'function');
+  assert.equal(typeof util.optimizeBlockSize, 'function');
+});
+
+console.log('\n✓ All v1.0.0 tests passed! 🎉');

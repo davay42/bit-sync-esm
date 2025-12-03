@@ -5,12 +5,13 @@ Modern ESM implementation of rsync-like binary delta synchronization for browser
 ## Features
 
 - 🚀 **Pure ESM** - Modern JavaScript modules
-- 🌐 **Browser-first** - Designed for web environments
+- 🌐 **Browser-first** - Designed for web environments  
 - 🔧 **WebWorker-ready** - Run in background threads
 - 📦 **Zero config** - Works out of the box
 - 🔒 **Efficient** - Uses Adler-32 rolling checksums + MD5
 - 🎯 **Small patches** - Only transmit what changed
 - ⚡ **Fast** - Optimized buffer operations
+- 🎛️ **Enhanced** - Progress callbacks, cancellation, multi-peer support
 
 ## Installation
 
@@ -55,43 +56,110 @@ This is extremely efficient for files with small changes, as only the difference
 
 ## API
 
-### `createChecksumDocument(blockSize, data)`
+### `createChecksumDocument(blockSize, data, options?)`
 
 Creates a checksum document for the destination data.
 
 - `blockSize` (number): Size of each block in bytes (e.g., 4096)
 - `data` (ArrayBuffer): The destination data
+- `options` (Object, optional):
+  - `onProgress` (Function): Progress callback `({ percent, phase, blocksProcessed, totalBlocks }) => {}`
+  - `signal` (AbortSignal): Cancellation signal
 - Returns: `ArrayBuffer` - Checksum document
 
 **Example:**
 ```javascript
+// Basic
 const checksums = createChecksumDocument(4096, myFileData);
+
+// With progress
+const checksums = createChecksumDocument(4096, myFileData, {
+  onProgress: ({ percent }) => console.log(`${percent}%`)
+});
+
+// With cancellation
+const controller = new AbortController();
+const checksums = createChecksumDocument(4096, myFileData, {
+  signal: controller.signal
+});
 ```
 
-### `createPatchDocument(checksumDocument, data)`
+### `createPatchDocument(checksumDocument, data, options?)`
 
 Creates a patch document by comparing source data against destination checksums.
 
 - `checksumDocument` (ArrayBuffer): Checksum document from destination
 - `data` (ArrayBuffer): The source data
+- `options` (Object, optional):
+  - `onProgress` (Function): Progress callback `({ percent, phase, matchesFound, stats }) => {}`
+  - `signal` (AbortSignal): Cancellation signal
 - Returns: `ArrayBuffer` - Patch document
 
 **Example:**
 ```javascript
+// Basic
 const patch = createPatchDocument(checksums, newFileData);
+
+// With progress and stats
+const patch = createPatchDocument(checksums, newFileData, {
+  onProgress: ({ percent, stats }) => {
+    console.log(`${percent}% - Matches: ${stats.matchesFound}`);
+  }
+});
 ```
 
-### `applyPatch(patchDocument, data)`
+### `applyPatch(patchDocument, data, options?)`
 
 Applies a patch to destination data, producing the updated file.
 
 - `patchDocument` (ArrayBuffer): Patch document from source
 - `data` (ArrayBuffer): The destination data
+- `options` (Object, optional):
+  - `onProgress` (Function): Progress callback
+  - `onBlockApplied` (Function): Called for each block applied
+  - `signal` (AbortSignal): Cancellation signal
 - Returns: `ArrayBuffer` - Synchronized data
 
 **Example:**
 ```javascript
+// Basic
 const updatedFile = applyPatch(patch, oldFileData);
+
+// With block tracking
+const updatedFile = applyPatch(patch, oldFileData, {
+  onBlockApplied: ({ blockIndex, source }) => {
+    console.log(`Applied block ${blockIndex} from ${source}`);
+  }
+});
+```
+
+### `mergeChecksumDocuments(...checksumDocs)`
+
+Merges multiple checksum documents for multi-peer scenarios.
+
+- `checksumDocs` (ArrayBuffer[]): Multiple checksum documents
+- Returns: `ArrayBuffer` - Merged checksum document
+
+**Example:**
+```javascript
+const merged = mergeChecksumDocuments(
+  peer1Checksums,
+  peer2Checksums,
+  peer3Checksums
+);
+```
+
+### `optimizeBlockSize(fileSize)`
+
+Automatically determines optimal block size based on file size.
+
+- `fileSize` (number): Size of file in bytes
+- Returns: `number` - Recommended block size
+
+**Example:**
+```javascript
+const blockSize = optimizeBlockSize(file.size);
+const checksums = createChecksumDocument(blockSize, file);
 ```
 
 ### `util`
@@ -101,6 +169,8 @@ Utility functions for testing and advanced use:
 - `rollingChecksum(adlerInfo, offset, end, data)` - Incremental checksum
 - `readUint32LE(uint8View, offset)` - Read little-endian uint32
 - `hash16(num)` - Create 16-bit hash
+- `optimizeBlockSize(fileSize)` - Get optimal block size
+- `validateBlockSize(blockSize, dataSize)` - Validate block size
 
 ## Usage Examples
 

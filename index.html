@@ -5,15 +5,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>bit-sync-esm Demo</title>
-  <importmap>
-    <script type="importmap">
-      {
-        "imports": {
-          "@noble/hashes/legacy.js": "https://esm.sh/@noble/hashes@2.0.1/legacy.js"
-        }
-      }
-    </script>
-  </importmap>
+  <script type="importmap">
+              {
+                "imports": {
+                  "@noble/hashes/legacy.js": "https://esm.sh/@noble/hashes@2.0.1/legacy.js"
+                }
+              }
+      </script>
   <style>
     body {
       font-family: system-ui, -apple-system, sans-serif;
@@ -121,19 +119,68 @@
 
   <div class="section">
     <h2>Step 1: Original File (Destination)</h2>
-    <textarea id="destination" placeholder="Enter original text...">The quick brown fox jumps over the lazy dog.
-This is a test document for binary synchronization.
-It contains multiple sentences and paragraphs.</textarea>
+    <textarea id="destination" placeholder="Enter original text...">We were somewhere around Barstow on the edge of the desert when the
+    drugs began to take hold. I remember saying something like “I feel a bit
+    lightheaded; maybe you should drive. . . .” And suddenly there was a
+    terrible roar all around us and the sky was full of what looked like huge
+    bats, all swooping and screeching and diving around the car, which was
+    going about a hundred miles an hour with the top down to Las Vegas. And a
+    voice was screaming: “Holy Jesus! What are these goddamn animals?”
+    Then it was quiet again. My attorney had taken his shirt off and was
+    pouring beer on his chest, to facilitate the tanning process. “What the hell
+    are you yelling about?” he muttered, staring up at the sun with his eyes
+    closed and covered with wraparound Spanish sunglasses. “Never mind,” I
+    said. “It’s your turn to drive.” I hit the brakes and aimed the Great Red
+    Shark toward the shoulder of the highway. No point mentioning those bats,
+    I thought. The poor bastard will see them soon enough.
+    It was almost noon, and we still had more than a hundred miles to go.
+    They would be tough miles. Very soon, I knew, we would both be
+    completely twisted. But there was no going back, and no time to rest. We
+    would have to ride it out. Press registration for the fabulous Mint 400 was
+    already underway, and we had to get there by four to claim our sound-proof
+    suite. A fashionable sporting magazine in New York had taken care of the
+    reservations, along with this huge red Chevy convertible we’d just rented
+    off a lot on the Sunset Strip . . . and I was, after all, a professional journalist;
+    so I had an obligation to cover the story, for good or ill.</textarea>
     <button id="createChecksums">Create Checksums</button>
     <div id="checksumResult"></div>
   </div>
 
   <div class="section">
     <h2>Step 2: Modified File (Source)</h2>
-    <textarea id="source" placeholder="Enter modified text...">The quick brown fox jumps over the lazy dog.
-This is a MODIFIED test document for binary synchronization.
-It contains multiple sentences and paragraphs.
-A new paragraph has been added here.</textarea>
+    <textarea id="source" placeholder="Enter modified text...">
+      # Added a headline and one paragraph 
+
+      We were somewhere around Barstow on the edge of the desert when the
+    drugs began to take hold. I remember saying something like “I feel a bit
+    lightheaded; maybe you should drive. . . .” And suddenly there was a
+    terrible roar all around us and the sky was full of what looked like huge
+    bats, all swooping and screeching and diving around the car, which was
+    going about a hundred miles an hour with the top down to Las Vegas. And a
+    voice was screaming: “Holy Jesus! What are these goddamn animals?”
+    Then it was quiet again. My attorney had taken his shirt off and was
+    pouring beer on his chest, to facilitate the tanning process. “What the hell
+    are you yelling about?” he muttered, staring up at the sun with his eyes
+    closed and covered with wraparound Spanish sunglasses. “Never mind,” I
+    said. “It’s your turn to drive.” I hit the brakes and aimed the Great Red
+    Shark toward the shoulder of the highway. No point mentioning those bats,
+    I thought. The poor bastard will see them soon enough.
+    It was almost noon, and we still had more than a hundred miles to go.
+    They would be tough miles. Very soon, I knew, we would both be
+    completely twisted. But there was no going back, and no time to rest. We
+    would have to ride it out. Press registration for the fabulous Mint 400 was
+    already underway, and we had to get there by four to claim our sound-proof
+    suite. A fashionable sporting magazine in New York had taken care of the
+    reservations, along with this huge red Chevy convertible we’d just rented
+    off a lot on the Sunset Strip . . . and I was, after all, a professional journalist;
+    so I had an obligation to cover the story, for good or ill.
+    The sporting editors had also given me $300 in cash, most of which was
+    already spent on extremely dangerous drugs. The trunk of the car looked
+    like a mobile police narcotics lab. We had two bags of grass, seventy-five
+    pellets of mescaline, five sheets of high-powered blotter acid, a salt shaker
+    half full of cocaine, and a whole galaxy of multi-colored uppers, downers,
+    screamers, laughers . . . and also a quart of tequila, a quart of rum, a case of
+    Budweiser, a pint of raw ether and two dozen amyls.</textarea>
     <button id="createPatch" disabled>Create Patch</button>
     <div id="patchResult"></div>
   </div>
@@ -156,7 +203,7 @@ A new paragraph has been added here.</textarea>
       applyPatch
     } from './index.js';
 
-    const BLOCK_SIZE = 64;
+    const BLOCK_SIZE = 256; // Use recommended minimum
     let checksumDoc = null;
     let patchDoc = null;
     let destinationData = null;
