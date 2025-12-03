@@ -136,7 +136,7 @@ const validateBlockSize = (blockSize, dataSize) => {
  * @param {AbortSignal} options.signal - Cancellation signal
  * @returns {ArrayBuffer} Checksum document
  */
-export const createChecksumDocument = (blockSize, data, options = {}) => {
+export const createChecksumDocument = (blockSize = DEFAULT_BLOCK_SIZE, data, options = {}) => {
   const { onProgress, signal } = options;
 
   if (!(data instanceof ArrayBuffer)) {

@@ -5,13 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2024-12-03
+## [1.0.0] - 2025-12-03
 
 ### Added
 - Initial release of bit-sync-esm
 - Modern ES Module implementation of rsync algorithm
 - Three core functions: `createChecksumDocument`, `createPatchDocument`, `applyPatch`
-- Comprehensive test suite with 21 tests
+- Comprehensive test suite with 22 tests
 - Interactive HTML demo
 - Full documentation with examples
 - WebTorrent integration examples
@@ -40,20 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Block size optimization guide
 
 ### Testing
-- 21 comprehensive test cases
+- 22 comprehensive test cases
 - Edge case coverage (empty files, single byte changes)
 - Stress tests with large files (up to 500KB)
 - Validation of correctness and efficiency
 - Performance metrics in test output
 
-## [Unreleased]
-
-### Planned
-- TypeScript type definitions (.d.ts)
-- Streaming API for very large files
-- Configurable hash algorithms
-- Progress callbacks for long operations
-- Compression options for patch documents
 
 ---
 
