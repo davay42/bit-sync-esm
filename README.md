@@ -1,5 +1,9 @@
 # bit-sync-esm
 
+[NPM](https://www.npmjs.com/package/bit-sync-esm)
+[GitHub](https://github.com/davay42/bit-sync-esm)
+[Demo](https://davay42.github.io/bit-sync-esm/)
+
 Modern ESM implementation of rsync-like binary delta synchronization for browsers. Perfect for WebTorrent, WebRTC, and other peer-to-peer applications.
 
 ## Features
