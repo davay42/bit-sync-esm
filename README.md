@@ -389,6 +389,8 @@ The destination:
 
 ## Credits
 
+Created by Denis Starov aka davay42 in Dec 2025.
+
 Based on the original [bit-sync](https://github.com/claytongulick/bit-sync) by Clayton C. Gulick, modernized for ESM with:
 - Modern JavaScript (const/let, arrow functions)
 - Replaced custom MD5 with [@noble/hashes](https://github.com/paulmillr/noble-hashes)

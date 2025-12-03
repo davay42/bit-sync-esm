@@ -9,8 +9,7 @@
   },
   "files": [
     "index.js",
-    "README.md",
-    "LICENSE"
+    "README.md"
   ],
   "scripts": {
     "test": "node --test test.js",
@@ -43,10 +42,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yourusername/bit-sync-esm.git"
+    "url": "git+https://github.com/davay42/bit-sync-esm.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/bit-sync-esm/issues"
+    "url": "https://github.com/davay42/bit-sync-esm/issues"
   },
-  "homepage": "https://github.com/yourusername/bit-sync-esm#readme"
+  "homepage": "https://github.com/davay42/bit-sync-esm#readme"
 }
